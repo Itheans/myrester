@@ -1,0 +1,135 @@
+
+<!DOCTYPE html>
+<html lang="th">
+  
+<head>
+  <meta charset="UTF-8">
+  <title>สรุปยอด</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container py-4">
+  <h4 class="mb-3">📈 สรุปยอดตามวันที่</h4>
+
+  <label>เลือกวันที่</label>
+  <input type="date" id="summary-date" class="form-control mb-3" onchange="calculateSummary()">
+
+  <div id="summary"></div>
+
+  <button class="btn btn-outline-success w-100 mt-3" onclick="exportCSV()">📤 ส่งออกข้อมูล</button>
+  <button class="btn btn-outline-danger w-100 mt-2" onclick="clearAll()">🧹 ล้างข้อมูลทั้งหมด</button>
+
+  <a href="index.html" class="btn btn-secondary mt-3 w-100">🔙 กลับเมนูหลัก</a>
+</div>
+
+<script>
+function calculateSummary() {
+  let sales = JSON.parse(localStorage.getItem("sales")) || [];
+  let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+
+  const selectedDate = new Date(document.getElementById("summary-date").value);
+  const summaryType = document.getElementById("summary-type").value;
+
+  if (isNaN(selectedDate)) return;
+
+  let filteredSales = [], filteredExpenses = [];
+
+  sales.forEach(s => {
+    const d = new Date(s.date);
+    if (isInSelectedRange(d, selectedDate, summaryType)) {
+      filteredSales.push(s);
+    }
+  });
+
+  expenses.forEach(e => {
+    const d = new Date(e.date);
+    if (isInSelectedRange(d, selectedDate, summaryType)) {
+      filteredExpenses.push(e);
+    }
+  });
+
+  let totalSales = filteredSales.reduce((sum, s) => sum + parseFloat(s.price) * parseFloat(s.qty), 0);
+  let totalExpenses = filteredExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+  let profit = totalSales - totalExpenses;
+
+  document.getElementById("summary").innerHTML = `
+    <div class="alert alert-primary">ยอดขายรวม: ${totalSales.toFixed(2)} บาท</div>
+    <div class="alert alert-danger">รายจ่ายรวม: ${totalExpenses.toFixed(2)} บาท</div>
+    <div class="alert alert-success">กำไร: ${profit.toFixed(2)} บาท</div>
+  `;
+}
+
+function isInSelectedRange(date, selectedDate, type) {
+  if (type === "day") {
+    return (
+      date.getFullYear() === selectedDate.getFullYear() &&
+      date.getMonth() === selectedDate.getMonth() &&
+      date.getDate() === selectedDate.getDate()
+    );
+  }
+
+  if (type === "week") {
+    const oneDay = 86400000;
+    const startOfWeek = new Date(selectedDate);
+    startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay()); // Sunday
+    const endOfWeek = new Date(startOfWeek.getTime() + 6 * oneDay); // Saturday
+
+    return date >= startOfWeek && date <= endOfWeek;
+  }
+
+  if (type === "month") {
+    return (
+      date.getFullYear() === selectedDate.getFullYear() &&
+      date.getMonth() === selectedDate.getMonth()
+    );
+  }
+
+  return false;
+}
+
+
+function clearAll() {
+  if (confirm("คุณแน่ใจว่าต้องการล้างข้อมูลทั้งหมดหรือไม่?")) {
+    localStorage.clear();
+    alert("ลบข้อมูลทั้งหมดเรียบร้อยแล้ว");
+    location.reload();
+  }
+}
+
+function exportCSV() {
+  const sales = JSON.parse(localStorage.getItem("sales")) || [];
+  const expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+  const date = document.getElementById("summary-date").value;
+
+  const filteredSales = sales.filter(s => s.date === date);
+  const filteredExpenses = expenses.filter(e => e.date === date);
+
+  if (filteredSales.length === 0 && filteredExpenses.length === 0) {
+    alert("ไม่มีข้อมูลในวันที่เลือก");
+    return;
+  }
+
+  let csv = "ประเภท,รายการ,จำนวน,ราคา/จำนวนเงิน,วันที่\n";
+  filteredSales.forEach(s => {
+    csv += `ขาย,${s.menu},${s.qty},${s.price},${s.date}\n`;
+  });
+  filteredExpenses.forEach(e => {
+    csv += `รายจ่าย,${e.item},-,${e.amount},${e.date}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `summary-${date}.csv`;
+  link.click();
+}
+
+
+window.onload = () => {
+  document.getElementById("summary-date").valueAsDate = new Date();
+  calculateSummary();
+};
+
+</script>
+</body>
+</html>
